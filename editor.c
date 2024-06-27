@@ -10,14 +10,12 @@ void init_editor(editor *editor)
         editor->num_rows = 0;
         editor->current_row = 0;
         editor->should_close = 0;
+        editor->scroll_offset = 0;
         editor->filename = NULL;
         editor->head = NULL;
 }
 
-
-
 void init_ncurses()
-
 {
         initscr();
         raw();
@@ -68,78 +66,78 @@ void insert_char(editor *editor, int c)
 
 }
 
+void insert_new_line(editor *editor) {
+    if (editor->head == NULL) {
+        editor->head = create_new_node();
+    }
 
+    line *current = get_current_line_position(editor);
+    line *newLine = create_new_node();
 
-void insert_new_line(editor *editor)
+    // Handle splitting the current line and inserting a new line
+    if (editor->cx < current->len) {
+        // Copy the content after the cursor to the new line
+        strncpy(newLine->c, &current->c[editor->cx], MAX_CONTENT - 1);
+        newLine->c[MAX_CONTENT - 1] = '\0'; // Ensure null-termination
+        newLine->len = strlen(newLine->c);
+        
+        // Trim the current line content at the cursor position
+        current->c[editor->cx] = '\0';
+        current->len = strlen(current->c);
+    }
 
-{
-        if (editor->head == NULL) {
-                editor->head = create_new_node();
-        }
+    newLine->next = current->next;
+    current->next = newLine;
+    editor->current_row++;
+    editor->num_rows++;
+    editor->cx = 0;
+    editor->cy++;
 
-        line *current = get_current_line_position(editor);
-        line *newLine = create_new_node();
-        if (editor->cx < current->len) {
-                strncpy(newLine->c, &current->c[editor->cx], sizeof(newLine->c) - 1);
-                newLine->c[strlen(newLine->c)] = '\0'; 
-                newLine->len = strlen(newLine->c);
-                current->c[editor->cx] = '\0';
-                current->len = strlen(current->c);
-        }
-
-        newLine->next = current->next;
-        current->next = newLine;
-        editor->current_row++;
-        editor->num_rows++;
-        editor->cx = 0;
-        editor->cy++;
-        move(editor->cy, editor->cx);
+    move(editor->cy, editor->cx);
 }
 
-
-
 void delete_char(editor *editor) {
-        line *current = editor->head;
-        line *prev = NULL;
-        int row = 0;
+    line *current = editor->head;
+    line *prev = NULL;
+    int row = 0;
 
-        // Navegar até a linha atual
-        while (current != NULL && row < editor->current_row) {
-                prev = current;
-                current = current->next;
-                row++;
+    // Navigate to the current row
+    while (current != NULL && row < editor->current_row) {
+        prev = current;
+        current = current->next;
+        row++;
+    }
+
+    // Check if we are out of bounds or the cursor position is invalid
+    if (current == NULL || editor->cx <= 0 || editor->cx > current->len) {
+        return;
+    }
+
+    // Delete a single character
+    memmove(&current->c[editor->cx - 1], &current->c[editor->cx], current->len - editor->cx);
+    current->len--;
+
+    if (current->len == 0 && row > 0) {
+        // Delete the line if it's empty after deletion and not the first line
+        if (prev == NULL) {
+            editor->head = current->next;
+        } else {
+            prev->next = current->next;
         }
 
-        // Verifica se estamos fora dos limites ou se a posição do cursor é inválida
-        if (current == NULL || editor->cx <= 0 || editor->cx > current->len) {
-                return;
-        }
-
-        // Caso contrário, deletar um único caractere
-        memmove(&current->c[editor->cx - 1], &current->c[editor->cx], current->len - editor->cx);
-        current->len--;
-
-        if (current->len == 0 && row > 0) {
-                // Deletar a linha se ela estiver vazia após a remoção
-                if (prev == NULL) {
-                        editor->head = current->next;
-                } else {
-                        prev->next = current->next;
-                }
-
-                free(current->c);
-                free(current);
-                editor->num_rows--;
-                editor->cy--;
-                editor->current_row--;
-                editor->cx = prev->len;
-                move(editor->cy, editor->cx);
-                return;
-        }
-
-        current->c[current->len] = '\0';
-        editor->cx--;
+        free(current->c);
+        free(current);
+        editor->num_rows--;
+        editor->cy--;
+        editor->current_row--;
+        editor->cx = (prev != NULL) ? prev->len : 0; // Move cursor to end of previous line
         move(editor->cy, editor->cx);
+        return;
+    }
+
+    current->c[current->len] = '\0';
+    editor->cx--;
+    move(editor->cy, editor->cx);
 }
 
 line *get_current_line_position(editor *editor)
@@ -159,10 +157,11 @@ void update_cursor_position(editor *editor, int key)
         switch (key) {
                 case KEY_UP:
                         {
-                                line *current = get_current_line_position(editor);
-                                if (editor->cy > 0 && editor->cx < current->len) {
+                                if (editor->cy > 0) {
                                         editor->cy--;
                                         editor->current_row--;
+                                } else {
+                                        editor->cy = 0;
                                 }
 
                         }
@@ -170,12 +169,15 @@ void update_cursor_position(editor *editor, int key)
 
                 case KEY_DOWN:
                         {
-                                line * current = get_current_line_position(editor);
-                                if (editor->cy < editor->num_rows && editor->cx < current->next->len) {
+                                if (editor->cy < editor->num_rows - 1) {
                                         editor->cy++;
                                         editor->current_row++;
+                                        
+                                        line *current = get_current_line_position(editor);
+                                        if (current && editor->cx >= current->len) {
+                                                editor->cx = current->len;
+                                        }
                                 }
-
                         }
                         break;
 
@@ -197,45 +199,70 @@ void update_cursor_position(editor *editor, int key)
         }
 }
 
+void scroll_rows(editor *editor) 
+{
+        if (editor->cy < editor->scroll_offset) {
+                editor->scroll_offset = editor->cy;
+        }
+
+        if (editor->cy >= editor->scroll_offset + editor->height) {
+                editor->scroll_offset = editor->cy - editor->height + 1;
+        }
+
+        if (editor->scroll_offset > editor->num_rows - editor->height) {
+        editor->scroll_offset = editor->num_rows - editor->height;
+    }
+
+}
+
 void print_rows(editor *editor)
 {
         line *current = editor->head;
-        int row = 0;
-        while (current != NULL) {
-                for (int i = 0; i < current->len; i++) {
-                        mvaddch(row, i, current->c[i]);
-                }
-                row++;
+        int displayed_row = 0;
+
+        // Avança para a linha de scroll_offset
+        for (int i = 0; i < editor->scroll_offset && current != NULL; i++) {
                 current = current->next;
         }
-        move(editor->cy, editor->cx);
+
+        // Imprime apenas as linhas visíveis na janela
+        while (current != NULL && displayed_row < editor->height) {
+                for (int i = 0; i < current->len && i < editor->width; i++) {
+                        mvaddch(displayed_row, i, current->c[i]);
+                }
+                displayed_row++;
+                current = current->next;
+        }
+
+        move(editor->cy - editor->scroll_offset, editor->cx);
         refresh();
 }
 
-void save_file(editor *editor)
-{
-        if (editor->filename == NULL) {
-                editor->filename = strdup("Untitled.txt");
-        }
+void save_file(editor *editor) {
+    if (editor->filename == NULL) {
+        fprintf(stderr, "Filename is not specified.\n");
+        return;
+    }
 
-        FILE *f = fopen(editor->filename, "w");
-        if (f == NULL) {
-                perror("Could not open file\n");
-                return;
-        }
+    FILE *file = fopen(editor->filename, "w");
+    if (!file) {
+        perror("Could not open file for writing");
+        return;
+    }
 
-        line *current = editor->head;
-        while (current != NULL) {
-                if (fwrite(current->c, sizeof(char), current->len, f) != (size_t)current->len) {
-                        perror("could not write to file");
-                        fclose(f);
-                        return;
+    line *current_line = editor->head;
+    while (current_line != NULL) {
+        fwrite(current_line->c, sizeof(char), current_line->len, file);
+
+        if (strstr(current_line->c, "\n") == NULL) {
+                        fputc('\n', file);
                 }
-                current = current->next;
-        }
 
-        fclose(f);
-        mvprintw(editor->height - 1, 0, "File saved");
+        current_line = current_line->next;
+    }
+
+    fclose(file);
+    mvprintw(editor->height - 1, 0, "File saved successfully.\n");
 }
 
 void free_lines(line *head)
@@ -284,4 +311,17 @@ void load_file(editor *editor, const char *name)
         free(line_buf);
         fclose(file);
         editor->filename = strdup(name);
+}
+
+void free_editor(editor *editor)
+{
+        if (editor->head != NULL) {
+                free_lines(editor->head);
+                editor->head = NULL;
+        }
+        
+        if (editor->filename != NULL) {
+                free(editor->filename);
+                editor->filename = NULL;
+        }
 }

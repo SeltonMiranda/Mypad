@@ -13,7 +13,6 @@ int main(int argc, char *argv[])
                 load_file(&editor, argv[1]);
                 print_rows(&editor);
         }
-
         int c;
 
         while (!editor.should_close) {
@@ -59,11 +58,13 @@ int main(int argc, char *argv[])
                                 break;
                 }
                 erase();
+                scroll_rows(&editor);
                 print_rows(&editor);
-                move(editor.cy, editor.cx);
+                move(editor.cy - editor.scroll_offset, editor.cx);
                 refresh();
         }
 
+        free_editor(&editor);
         end_ncurses();
         return 0;
 }

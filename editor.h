@@ -18,6 +18,7 @@ typedef struct editor {
         int num_rows;
         int current_row;
         int should_close;
+        int scroll_offset;
         char *filename;
         line *head;
 } editor;
@@ -34,6 +35,7 @@ line *get_current_line_position(editor *editor);
 void save_file(editor *editor);
 void load_file(editor *editor, const char *name);
 void free_lines(line *head);
-
+void scroll_rows(editor *editor);
+void free_editor(editor *editor);
 
 #endif
