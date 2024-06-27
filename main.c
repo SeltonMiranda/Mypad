@@ -49,7 +49,7 @@ int main()
                                 insert_char(&editor, c);
                                 break;
                 }
-                clear();
+                erase();
                 print_rows(&editor);
                 move(editor.cy, editor.cx);
                 refresh();

@@ -58,6 +58,10 @@ void insert_char(editor *editor, int c)
                 row++;
         }
 
+        if (editor->cx > MAX_CONTENT) {
+                current->c = realloc(current->c, MAX_CONTENT * 2);
+        }
+
         memmove(&current->c[editor->cx + 1], &current->c[editor->cx], current->len - editor->cx);
         current->c[editor->cx] = c;
         current->len++;
@@ -81,7 +85,8 @@ void insert_new_line(editor *editor)
         line *newLine = create_new_node();
 
         if (editor->cx < current->len) {
-                strcpy(newLine->c, &current->c[editor->cx]);
+                strncpy(newLine->c, &current->c[editor->cx], sizeof(newLine->c) - 1);
+                newLine->c[strlen(newLine->c)] = '\0'; 
                 newLine->len = strlen(newLine->c);
                 current->c[editor->cx] = '\0';
                 current->len = strlen(current->c);
@@ -96,29 +101,42 @@ void insert_new_line(editor *editor)
         editor->cy++;
 
         move(editor->cy, editor->cx);
-        refresh();
 }
 
 void delete_char(editor *editor)
 {
         line *current = editor->head;
+        line *prev = NULL;
         int row = 0;
         while (current != NULL && row < editor->current_row) {
+                prev = current;
                 current = current->next;
                 row++;
         }
         
-        if (editor->cx <= 0 || editor->cx > current->len)
+        if (current == NULL || editor->cx <= 0 || editor->cx > current->len)
                 return;
 
         memmove(&current->c[editor->cx - 1], &current->c[editor->cx],
                 current->len - editor->cx);
         current->len--;
+        
+        if (current->len == 0 && row > 0) {
+                free(current->c);
+                free(current);
+                editor->num_rows--;
+                editor->cy--;
+                editor->current_row--;
+                editor->cx = prev->len;
+                prev->next = NULL;
+
+                move(editor->cy, editor->cx);
+                return;
+        }
+
         current->c[current->len] = '\0';
         editor->cx--;
-        clear();
         move(editor->cy, editor->cx);
-        refresh();
 }
 
 
@@ -167,7 +185,10 @@ void print_rows(editor *editor)
         line *current = editor->head;
         int row = 0;
         while (current != NULL) {
-                mvprintw(row++, 0, "%s", current->c);
+                for (int i = 0; i < current->len; i++) {
+                        mvaddch(row, i, current->c[i]);
+                }
+                row++;
                 current = current->next;
         }
         move(editor->cy, editor->cx);
