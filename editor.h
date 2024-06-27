@@ -18,6 +18,7 @@ typedef struct editor {
         int num_rows;
         int current_row;
         int should_close;
+        char *filename;
         line *head;
 } editor;
 
@@ -29,6 +30,10 @@ void insert_new_line(editor *editor);
 void print_rows(editor *editor);
 void update_cursor_position(editor *editor, int key);
 void delete_char(editor *editor);
+line *get_current_line_position(editor *editor);
+void save_file(editor *editor);
+void load_file(editor *editor, const char *name);
+void free_lines(line *head);
 
 
 #endif

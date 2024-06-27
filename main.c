@@ -1,14 +1,19 @@
 
-#include <ncurses.h>
-#define CTRL(x) ((x) & 0x1F)
-
 #include "editor.h"
 
-int main() 
+#define CTRL(x) ((x) & 0x1F)
+
+int main(int argc, char *argv[]) 
 {
         init_ncurses();
         editor editor;
         init_editor(&editor);
+
+        if (argc == 2) {
+                load_file(&editor, argv[1]);
+                print_rows(&editor);
+        }
+
         int c;
 
         while (!editor.should_close) {
@@ -25,6 +30,10 @@ int main()
 
                         case '\n':
                                 insert_new_line(&editor);
+                                break;
+
+                        case CTRL('s'):
+                                save_file(&editor);
                                 break;
 
                         case 'p':
