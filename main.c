@@ -57,7 +57,6 @@ int main(int argc, char *argv[])
                                 insert_char(&editor, c);
                                 break;
                 }
-                erase();
                 scroll_rows(&editor);
                 print_rows(&editor);
                 move(editor.cy - editor.scroll_offset, editor.cx);
