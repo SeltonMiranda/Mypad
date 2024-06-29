@@ -1,0 +1,4 @@
+*.o
+editor
+*.txt
+*.gch

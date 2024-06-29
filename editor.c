@@ -219,12 +219,12 @@ void print_rows(editor *editor)
         line *current = editor->head;
         int displayed_row = 0;
 
-        // Avança para a linha de scroll_offset
+        // moves to offset row
         for (int i = 0; i < editor->scroll_offset && current != NULL; i++) {
                 current = current->next;
         }
 
-        // Imprime apenas as linhas visíveis na janela
+        // print rows after offset
         while (current != NULL && displayed_row < editor->height - 1) {
                 for (int i = 0; i < current->len && i < editor->width; i++) {
                         mvaddch(displayed_row, i, current->c[i]);
@@ -259,6 +259,8 @@ void save_file(editor *editor) {
                 current_line = current_line->next;
         }
         fclose(file);
+
+        // ncurses things
         mvprintw(editor->height - 1, 0, "File saved successfully.");
         refresh();
 
